@@ -21,6 +21,15 @@ Se il tuo server è spento, la richiesta resta in coda sull'HA del cliente e par
 └────────────────────────┘
 ```
 
+## Screenshot
+
+<table>
+<tr>
+<td width="38%" valign="top"><img src="assets/screenshots/card-telefono.png" alt="Card sul telefono"><br><sub>Telefono: pulsante + elenco richieste</sub></td>
+<td valign="top"><img src="assets/screenshots/tablet-pagina.png" alt="Pagina Assistenza sul tablet"><br><sub>Tablet: pagina Assistenza (Mushroom)</sub><br><br><img src="assets/screenshots/tablet-barra.png" alt="Barra di navigazione con badge"><br><sub>Barra di navigazione con badge delle richieste aperte</sub></td>
+</tr>
+</table>
+
 ## Contenuto
 
 | Percorso | Cosa contiene |

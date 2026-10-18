@@ -23,6 +23,15 @@ If your server is off, the request is queued on the client's HA and sent automat
 > The user interface (form, notifications, dashboard texts) and the code comments are in **Italian**.
 > Entity and file names are explained below; translate the visible texts if your clients need another language.
 
+## Screenshots
+
+<table>
+<tr>
+<td width="38%" valign="top"><img src="assets/screenshots/card-telefono.png" alt="Phone card"><br><sub>Phone: button + list of requests</sub></td>
+<td valign="top"><img src="assets/screenshots/tablet-pagina.png" alt="Support page on the tablet"><br><sub>Tablet: support page (Mushroom)</sub><br><br><img src="assets/screenshots/tablet-barra.png" alt="Navigation bar with badge"><br><sub>Navigation bar with open-requests badge</sub></td>
+</tr>
+</table>
+
 ## Contents
 
 | Path | What it is |
