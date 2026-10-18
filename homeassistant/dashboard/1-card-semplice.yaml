@@ -1,0 +1,48 @@
+# Card nativa, nessun plugin richiesto.
+# Pulsante che apre il modulo + elenco delle richieste.
+type: vertical-stack
+cards:
+  - type: button
+    entity: script.segnala_bug_o_miglioria
+    name: Segnala un problema
+    icon: mdi:message-alert-outline
+    show_state: false
+    tap_action:
+      action: more-info
+    hold_action:
+      action: none
+  - type: markdown
+    title: Le mie richieste
+    content: |
+      {% set online = is_state('binary_sensor.server_assistenza_online', 'on') %}
+      {% set coda = states('todo.segnalazioni_in_attesa') | int(0) %}
+      {% set r = state_attr('sensor.richieste_assistenza', 'richieste') or [] %}
+      {% if not online %}
+      {% if 3 <= now().hour < 9 %}
+      > 🌙 **Il server di assistenza è spento dalle 3:00 alle 9:00.**
+      > Puoi comunque inviare segnalazioni: verranno consegnate automaticamente dopo le 9:00.
+      {% else %}
+      > ⚠️ **Il server di assistenza non è raggiungibile in questo momento.**
+      > Puoi comunque inviare segnalazioni: verranno consegnate automaticamente appena torna online.
+      {% endif %}
+
+      {% endif %}
+      {% if coda > 0 %}
+      ### ⏳ In attesa di invio ({{ coda }})
+      {{ coda }} {{ 'segnalazione verrà inviata' if coda == 1 else 'segnalazioni verranno inviate' }} appena il server torna online.
+
+      {% endif %}
+      {% for gruppo, titolo in [('in_lavorazione', '🔧 In lavorazione'), ('inviata', '📩 Inviate'), ('risolta', '✅ Risolte')] %}
+      {% set lista = r | selectattr('stato', 'eq', gruppo) | list %}
+      ### {{ titolo }} ({{ lista | count }})
+      {% for x in lista %}
+      **{{ x.data }}** · {{ x.tipo }}{% if x.stanza and x.stanza != '-' %} · {{ x.stanza }}{% endif %}{% if x.risolta_il %} · risolta il {{ x.risolta_il }}{% endif %}
+      {{ x.testo | replace('\n', ' ') }}
+
+      {% else %}
+      _Nessuna richiesta_
+
+      {% endfor %}
+      {% endfor %}
+      {% set agg = state_attr('sensor.richieste_assistenza', 'aggiornato') %}
+      {% if agg %}<sub>Aggiornato: {{ as_timestamp(agg) | timestamp_custom('%d/%m/%Y %H:%M') }}</sub>{% endif %}

@@ -1,0 +1,34 @@
+# Vikunja - to-do list dove finiscono le segnalazioni dei clienti
+#
+# Prima di avviare, nella stessa cartella:
+#   mkdir files db && sudo chown 1000 files db
+# Avvio:
+#   docker compose up -d
+# Crea il tuo utente (la registrazione dal web è disattivata):
+#   docker compose exec vikunja /app/vikunja/vikunja user create -u admin -e tua@email.it
+#
+# Vikunja NON va esposto su internet: usalo dalla LAN o via VPN.
+# n8n lo contatta in LAN.
+
+services:
+  vikunja:
+    image: vikunja/vikunja:latest
+    container_name: vikunja
+    restart: unless-stopped
+    ports:
+      - "3456:3456"
+    environment:
+      # Deve corrispondere ESATTAMENTE all'indirizzo che apri nel browser (con / finale),
+      # altrimenti ricevi errori "unauthorized"
+      VIKUNJA_SERVICE_PUBLICURL: "http://IP-SERVER:3456/"
+      # Genera con: openssl rand -hex 32
+      VIKUNJA_SERVICE_JWTSECRET: "CAMBIA-con-una-stringa-lunga-e-casuale"
+      VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
+      VIKUNJA_SERVICE_TIMEZONE: "Europe/Rome"
+      # Serve a n8n per leggere tutte le richieste in una sola chiamata (default 50)
+      VIKUNJA_SERVICE_MAXITEMSPERPAGE: "500"
+      VIKUNJA_DATABASE_TYPE: "sqlite"
+      VIKUNJA_DATABASE_PATH: "/db/vikunja.db"
+    volumes:
+      - ./files:/app/vikunja/files
+      - ./db:/db

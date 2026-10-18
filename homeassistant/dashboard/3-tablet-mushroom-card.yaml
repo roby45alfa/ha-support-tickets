@@ -1,0 +1,131 @@
+# Card per dashboard tablet in stile Mushroom.
+# Richiede: Mushroom, card-mod, layout-card (HACS).
+type: custom:mod-card
+card_mod:
+  style: |
+    ha-card {
+      background: rgba(30,30,30,0.88);
+      border-radius: 34px;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 28px;
+      box-shadow: none;
+      overflow: hidden;
+    }
+card:
+  type: vertical-stack
+  cards:
+    - type: custom:layout-card
+      layout_type: custom:grid-layout
+      layout:
+        grid-template-columns: minmax(0, 1fr) 300px
+        grid-gap: 12px
+        margin: 0
+        padding: 0 0 16px 0
+        mediaquery:
+          "(max-width: 800px)":
+            grid-template-columns: 1fr
+      cards:
+        - type: custom:mushroom-template-card
+          primary: Assistenza
+          secondary: >
+            {% set n = states('sensor.richieste_assistenza') | int(0) %}
+            {% if n == 0 %}
+              Nessuna richiesta aperta
+            {% elif n == 1 %}
+              1 richiesta aperta
+            {% else %}
+              {{ n }} richieste aperte
+            {% endif %}
+          icon: mdi:message-alert-outline
+          icon_color: blue
+          fill_container: true
+          card_mod:
+            style: |
+              ha-card {
+                background: transparent;
+                box-shadow: none;
+                border: none;
+                padding: 0;
+              }
+              .primary {
+                font-size: 28px !important;
+                font-weight: 700 !important;
+              }
+              .secondary {
+                font-size: 18px !important;
+                opacity: 0.65;
+              }
+
+        - type: custom:mushroom-template-card
+          entity: script.segnala_bug_o_miglioria
+          primary: Nuova segnalazione
+          secondary: Bug o miglioria
+          icon: mdi:plus-circle-outline
+          icon_color: amber
+          layout: horizontal
+          fill_container: true
+          tap_action:
+            action: more-info
+          hold_action:
+            action: none
+          card_mod:
+            style: |
+              ha-card {
+                height: 70px;
+                border-radius: 36px;
+                background: rgba(38,38,38,0.82);
+                border: 1px solid rgba(255,255,255,0.13);
+              }
+              .primary {
+                font-size: 18px !important;
+                font-weight: 700 !important;
+              }
+
+    - type: markdown
+      card_mod:
+        style: |
+          ha-card {
+            background: transparent;
+            box-shadow: none;
+            border: none;
+            padding: 0;
+            font-size: 17px;
+            line-height: 1.5;
+          }
+          h3 {
+            font-size: 21px;
+            margin: 18px 0 6px 0;
+          }
+      content: |
+        {% set online = is_state('binary_sensor.server_assistenza_online', 'on') %}
+        {% set coda = states('todo.segnalazioni_in_attesa') | int(0) %}
+        {% set r = state_attr('sensor.richieste_assistenza', 'richieste') or [] %}
+        {% if not online %}
+        {% if 3 <= now().hour < 9 %}
+        > 🌙 **Il server di assistenza è spento dalle 3:00 alle 9:00.**
+        > Puoi comunque inviare segnalazioni: verranno consegnate automaticamente dopo le 9:00.
+        {% else %}
+        > ⚠️ **Il server di assistenza non è raggiungibile in questo momento.**
+        > Puoi comunque inviare segnalazioni: verranno consegnate automaticamente appena torna online.
+        {% endif %}
+
+        {% endif %}
+        {% if coda > 0 %}
+        ### ⏳ In attesa di invio ({{ coda }})
+        {{ coda }} {{ 'segnalazione verrà inviata' if coda == 1 else 'segnalazioni verranno inviate' }} appena il server torna online.
+
+        {% endif %}
+        {% for gruppo, titolo in [('in_lavorazione', '🔧 In lavorazione'), ('inviata', '📩 Inviate'), ('risolta', '✅ Risolte')] %}
+        {% set lista = r | selectattr('stato', 'eq', gruppo) | list %}
+        ### {{ titolo }} ({{ lista | count }})
+        {% for x in lista %}
+        **{{ x.data }}** · {{ x.tipo }}{% if x.stanza and x.stanza != '-' %} · {{ x.stanza }}{% endif %}{% if x.risolta_il %} · risolta il {{ x.risolta_il }}{% endif %}
+        {{ x.testo | replace('\n', ' ') }}
+
+        {% else %}
+        _Nessuna richiesta_
+
+        {% endfor %}
+        {% endfor %}
+        {% set agg = state_attr('sensor.richieste_assistenza', 'aggiornato') %}
+        {% if agg %}<sub>Aggiornato: {{ as_timestamp(agg) | timestamp_custom('%d/%m/%Y %H:%M') }}</sub>{% endif %}

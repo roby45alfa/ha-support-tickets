@@ -1,0 +1,55 @@
+# Pop-up con Bubble Card (HACS).
+# Va messo nella STESSA vista del pulsante che lo apre (vedi 2-pulsante-tile.yaml).
+# Le versioni recenti di Bubble Card propongono di migrarlo al "formato autonomo":
+# si può accettare senza problemi.
+type: vertical-stack
+cards:
+  - type: custom:bubble-card
+    card_type: pop-up
+    hash: "#assistenza"
+    name: Assistenza
+    icon: mdi:message-alert-outline
+    close_by_clicking_outside: true
+  - type: custom:bubble-card
+    card_type: button
+    button_type: name
+    entity: script.segnala_bug_o_miglioria
+    name: Segnala un problema o una miglioria
+    icon: mdi:plus-circle-outline
+    button_action:
+      tap_action:
+        action: more-info
+  - type: markdown
+    content: |
+      {% set online = is_state('binary_sensor.server_assistenza_online', 'on') %}
+      {% set coda = states('todo.segnalazioni_in_attesa') | int(0) %}
+      {% set r = state_attr('sensor.richieste_assistenza', 'richieste') or [] %}
+      {% if not online %}
+      {% if 3 <= now().hour < 9 %}
+      > 🌙 **Il server di assistenza è spento dalle 3:00 alle 9:00.**
+      > Puoi comunque inviare segnalazioni: verranno consegnate automaticamente dopo le 9:00.
+      {% else %}
+      > ⚠️ **Il server di assistenza non è raggiungibile in questo momento.**
+      > Puoi comunque inviare segnalazioni: verranno consegnate automaticamente appena torna online.
+      {% endif %}
+
+      {% endif %}
+      {% if coda > 0 %}
+      ### ⏳ In attesa di invio ({{ coda }})
+      {{ coda }} {{ 'segnalazione verrà inviata' if coda == 1 else 'segnalazioni verranno inviate' }} appena il server torna online.
+
+      {% endif %}
+      {% for gruppo, titolo in [('in_lavorazione', '🔧 In lavorazione'), ('inviata', '📩 Inviate'), ('risolta', '✅ Risolte')] %}
+      {% set lista = r | selectattr('stato', 'eq', gruppo) | list %}
+      ### {{ titolo }} ({{ lista | count }})
+      {% for x in lista %}
+      **{{ x.data }}** · {{ x.tipo }}{% if x.stanza and x.stanza != '-' %} · {{ x.stanza }}{% endif %}{% if x.risolta_il %} · risolta il {{ x.risolta_il }}{% endif %}
+      {{ x.testo | replace('\n', ' ') }}
+
+      {% else %}
+      _Nessuna richiesta_
+
+      {% endfor %}
+      {% endfor %}
+      {% set agg = state_attr('sensor.richieste_assistenza', 'aggiornato') %}
+      {% if agg %}<sub>Aggiornato: {{ as_timestamp(agg) | timestamp_custom('%d/%m/%Y %H:%M') }}</sub>{% endif %}

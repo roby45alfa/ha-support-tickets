@@ -1,0 +1,10 @@
+# Pulsante compatto che apre il pop-up Bubble Card.
+# Mostra il numero di richieste aperte (aggiungi "hide_state: true" per nasconderlo).
+type: tile
+entity: sensor.richieste_assistenza
+name: Assistenza
+icon: mdi:message-alert-outline
+color: blue
+tap_action:
+  action: navigate
+  navigation_path: "#assistenza"

@@ -1,0 +1,7 @@
+# Dati e segreti reali: non vanno mai nel repository
+secrets.yaml
+.env
+server/vikunja/db/
+server/vikunja/files/
+*.db
+.DS_Store

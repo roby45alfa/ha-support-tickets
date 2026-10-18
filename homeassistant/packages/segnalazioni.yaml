@@ -1,0 +1,204 @@
+# =====================================================================
+# Segnalazioni clienti - package per Home Assistant
+#
+# Contiene tutto il lato cliente: invio, coda offline, stato richieste.
+#
+# Requisiti:
+#   1) in configuration.yaml:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   2) i valori di secrets.example.yaml nel secrets.yaml
+#   3) una lista "Local To-do" chiamata "Segnalazioni in attesa"
+#      (entità todo.segnalazioni_in_attesa) creata dalla UI
+#
+# Orari: il server di esempio si spegne dalle 03:00 alle 09:00.
+# Se il tuo è sempre acceso, togli la condizione "time" dall'automazione.
+# =====================================================================
+
+rest_command:
+  segnalazione_assistenza:
+    url: !secret segnalazioni_url
+    method: POST
+    content_type: "application/json"
+    headers:
+      X-Segnalazioni-Token: !secret segnalazioni_token
+    payload: >-
+      {{ {"tipo": tipo, "stanza": stanza, "descrizione": descrizione,
+          "inviata_il": inviata_il, "in_coda": in_coda} | to_json }}
+    timeout: 15
+
+rest:
+  - resource: !secret segnalazioni_stato_url
+    method: GET
+    headers:
+      X-Segnalazioni-Token: !secret segnalazioni_token
+    scan_interval: 600
+    timeout: 15
+    sensor:
+      - name: Segnalazioni assistenza
+        unique_id: segnalazioni_assistenza
+        icon: mdi:clipboard-list-outline
+        value_template: "{{ value_json.aperte }}"
+        json_attributes:
+          - richieste
+          - aggiornato
+
+template:
+  # Copia dell'ultimo stato ricevuto: resta visibile anche a server spento.
+  # NB: niente to/not_to nel trigger, altrimenti non scatta quando cambiano
+  # solo gli attributi (es. una richiesta passa a "In lavorazione").
+  - triggers:
+      - trigger: state
+        entity_id: sensor.segnalazioni_assistenza
+    sensor:
+      - name: Richieste assistenza
+        unique_id: richieste_assistenza
+        icon: mdi:clipboard-list-outline
+        state: >-
+          {% set s = trigger.to_state %}
+          {{ s.state if s and s.state not in ['unavailable', 'unknown'] else this.state }}
+        attributes:
+          richieste: >-
+            {% set s = trigger.to_state %}
+            {{ s.attributes.richieste | default([]) if s and s.state not in ['unavailable', 'unknown'] else this.attributes.get('richieste', []) }}
+          aggiornato: >-
+            {% set s = trigger.to_state %}
+            {{ s.attributes.aggiornato | default('') if s and s.state not in ['unavailable', 'unknown'] else this.attributes.get('aggiornato', '') }}
+  - binary_sensor:
+      - name: Server assistenza online
+        unique_id: server_assistenza_online
+        device_class: connectivity
+        state: "{{ states('sensor.segnalazioni_assistenza') not in ['unavailable', 'unknown'] }}"
+
+script:
+  segnala_bug_o_miglioria:
+    alias: Segnala bug o miglioria
+    icon: mdi:message-alert-outline
+    mode: queued
+    fields:
+      tipo:
+        name: Tipo
+        required: true
+        default: Bug
+        selector:
+          select:
+            options:
+              - Bug
+              - Miglioria
+      stanza:
+        name: Stanza o dispositivo (facoltativo)
+        selector:
+          text:
+      descrizione:
+        name: Descrivi il problema o l'idea
+        required: true
+        selector:
+          text:
+            multiline: true
+    sequence:
+      - variables:
+          dati:
+            tipo: "{{ tipo }}"
+            stanza: "{{ stanza if stanza else '-' }}"
+            descrizione: "{{ descrizione }}"
+            inviata_il: "{{ now().strftime('%d/%m/%Y %H:%M') }}"
+      - action: rest_command.segnalazione_assistenza
+        data:
+          tipo: "{{ dati.tipo }}"
+          stanza: "{{ dati.stanza }}"
+          descrizione: "{{ dati.descrizione }}"
+          inviata_il: "{{ dati.inviata_il }}"
+          in_coda: false
+        response_variable: risposta
+        continue_on_error: true
+      - if:
+          - condition: template
+            value_template: "{{ risposta is defined and risposta.status == 200 }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              title: Segnalazione inviata ✅
+              message: "Grazie! La tua segnalazione è stata ricevuta."
+        else:
+          # Server spento o non raggiungibile: la richiesta va in coda
+          - action: todo.add_item
+            target:
+              entity_id: todo.segnalazioni_in_attesa
+            data:
+              item: "{{ dati.tipo }}: {{ dati.descrizione[:50] }}"
+              description: "{{ dati | to_json }}"
+          - action: persistent_notification.create
+            data:
+              title: Segnalazione in attesa ⏳
+              message: >-
+                Il server di assistenza è spento in questo momento.
+                La tua segnalazione è stata salvata e verrà inviata
+                automaticamente appena torna online.
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.segnalazioni_assistenza
+        continue_on_error: true
+
+automation:
+  - id: segnalazioni_invia_coda
+    alias: Invia segnalazioni in attesa
+    mode: single
+    triggers:
+      - trigger: time
+        at: "09:05:00"
+      - trigger: time_pattern
+        minutes: "/10"
+      - trigger: state
+        entity_id: binary_sensor.server_assistenza_online
+        to: "on"
+      - trigger: homeassistant
+        event: start
+    conditions:
+      # Il server è spento dalle 03:00 alle 09:00: inutile riprovare
+      - condition: time
+        after: "09:00:00"
+        before: "03:00:00"
+      - condition: template
+        value_template: "{{ states('todo.segnalazioni_in_attesa') | int(0) > 0 }}"
+    actions:
+      - action: todo.get_items
+        target:
+          entity_id: todo.segnalazioni_in_attesa
+        data:
+          status: needs_action
+        response_variable: coda
+      - repeat:
+          for_each: "{{ coda['todo.segnalazioni_in_attesa']['items'] }}"
+          sequence:
+            - variables:
+                p: "{{ repeat.item.description | from_json }}"
+                risposta:
+                  status: 0
+            - action: rest_command.segnalazione_assistenza
+              data:
+                tipo: "{{ p.tipo }}"
+                stanza: "{{ p.stanza }}"
+                descrizione: "{{ p.descrizione }}"
+                inviata_il: "{{ p.inviata_il }}"
+                in_coda: true
+              response_variable: risposta
+              continue_on_error: true
+            - if:
+                - condition: template
+                  value_template: "{{ risposta.status == 200 }}"
+              then:
+                - action: todo.remove_item
+                  target:
+                    entity_id: todo.segnalazioni_in_attesa
+                  data:
+                    item: "{{ repeat.item.uid }}"
+              else:
+                - stop: Server non raggiungibile, riprovo più tardi
+      - action: persistent_notification.create
+        data:
+          title: Segnalazioni inviate ✅
+          message: "Le segnalazioni in attesa sono state consegnate."
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.segnalazioni_assistenza
+        continue_on_error: true
