@@ -1,5 +1,7 @@
 # Segnalazioni clienti per Home Assistant
 
+🇮🇹 Italiano · [🇬🇧 English](README.en.md)
+
 Un pulsante nell'Home Assistant dei tuoi clienti per inviarti **bug** e **migliorie** della loro domotica.
 Le segnalazioni arrivano su **Telegram** e finiscono in una to-do list **Vikunja** sul tuo server;
 il cliente vede in dashboard lo stato di ogni richiesta (*Inviata → In lavorazione → Risolta*).
